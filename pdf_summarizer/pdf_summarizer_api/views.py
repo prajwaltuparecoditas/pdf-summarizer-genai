@@ -1,10 +1,11 @@
 from django.shortcuts import render, redirect
 from django.contrib import messages
+from django.contrib.auth import authenticate, login
 from django.conf import settings
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
-from rest_framework import status, serializers
+from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.permissions import IsAuthenticated
 from .serializers import PDfDocumentSerializer, UserLoginSerializer, UserRegisterSerializer
@@ -20,6 +21,8 @@ import PyPDF2
 class GenerateSummary(APIView):
     
     def post(self, request):
+        if not request.user.is_authenticated:
+            return render(request, "signup.html")
         pdf_file = request.FILES.get('pdf_file')
         
         if not pdf_file:
@@ -81,6 +84,8 @@ def signup(request):
 
 class UserLoginAPIView(APIView):
     def post(self, request, *args, **kargs):
+        username = request.data['username']
+        password = request.data['password']
         serializer = UserLoginSerializer(data=request.data)
         if serializer.is_valid():
             response = {
@@ -88,8 +93,9 @@ class UserLoginAPIView(APIView):
                     "detail": "User Doesnot exist!"
                 }
             }
-            if User.objects.filter(username=request.data['username']).exists():
-                user = User.objects.get(username=request.data['username'])
+            user = authenticate(request, username=username, password=password)
+            if user is not None:
+                login(request,user)
                 token, created = Token.objects.get_or_create(user=user)
                 response = {
                     'success': True,
@@ -97,6 +103,7 @@ class UserLoginAPIView(APIView):
                     'email': user.email,
                     'token': token.key
                 }
+
                 return Response(response, status=status.HTTP_200_OK)
             return Response(response, status=status.HTTP_400_BAD_REQUEST)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
