@@ -1,0 +1,6 @@
+.env
+env
+pdf_summarizer\db.sqlite3
+static\
+pdf_summarizer\pdf_documents
+trial.ipynb
