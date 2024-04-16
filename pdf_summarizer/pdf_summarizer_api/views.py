@@ -1,12 +1,13 @@
 from django.shortcuts import render, redirect
 from django.contrib import messages
-from django.contrib.auth import authenticate, login
+from django.contrib.auth import authenticate, login, logout
 from django.conf import settings
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
 from rest_framework import status
 from rest_framework.authtoken.models import Token
+from rest_framework.authentication import SessionAuthentication, BasicAuthentication,TokenAuthentication
 from rest_framework.permissions import IsAuthenticated
 from .serializers import PDfDocumentSerializer, UserLoginSerializer, UserRegisterSerializer
 from .models import PDFDocument, User
@@ -19,10 +20,10 @@ import PyPDF2
 # Create your views here.
 
 class GenerateSummary(APIView):
-    
+    authentication_classes = [TokenAuthentication, BasicAuthentication, SessionAuthentication]
+    permission_classes = [IsAuthenticated]
+
     def post(self, request):
-        if not request.user.is_authenticated:
-            return render(request, "signup.html")
         pdf_file = request.FILES.get('pdf_file')
         
         if not pdf_file:
@@ -125,11 +126,13 @@ class UserRegisterAPIView(APIView):
 
 
 class UserLogoutAPIView(APIView):
-    #   authentication_classes = [TokenAuthentication]
+    authentication_classes = [TokenAuthentication, BasicAuthentication, SessionAuthentication]
+    # authentication_classes = (SessionAuthentication, BasicAuthentication)
     permission_classes = [IsAuthenticated]
 
     def post(self, request, *args):
         print(request.user.id)
         token = Token.objects.get(user_id=request.user.id)
+        logout(request)
         token.delete()
         return Response({"success": True, "detail": "Logged out!"}, status=status.HTTP_200_OK)
