@@ -1,11 +1,13 @@
 from django.shortcuts import render, redirect
 from django.contrib import messages
+from django.contrib.auth import authenticate, login, logout
 from django.conf import settings
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
-from rest_framework import status, serializers
+from rest_framework import status
 from rest_framework.authtoken.models import Token
+from rest_framework.authentication import SessionAuthentication, BasicAuthentication,TokenAuthentication
 from rest_framework.permissions import IsAuthenticated
 from .serializers import PDfDocumentSerializer, UserLoginSerializer, UserRegisterSerializer
 from .models import PDFDocument, User
@@ -18,7 +20,9 @@ import PyPDF2
 # Create your views here.
 
 class GenerateSummary(APIView):
-    
+    authentication_classes = [TokenAuthentication, BasicAuthentication, SessionAuthentication]
+    permission_classes = [IsAuthenticated]
+
     def post(self, request):
         pdf_file = request.FILES.get('pdf_file')
         
@@ -81,6 +85,8 @@ def signup(request):
 
 class UserLoginAPIView(APIView):
     def post(self, request, *args, **kargs):
+        username = request.data['username']
+        password = request.data['password']
         serializer = UserLoginSerializer(data=request.data)
         if serializer.is_valid():
             response = {
@@ -88,8 +94,9 @@ class UserLoginAPIView(APIView):
                     "detail": "User Doesnot exist!"
                 }
             }
-            if User.objects.filter(username=request.data['username']).exists():
-                user = User.objects.get(username=request.data['username'])
+            user = authenticate(request, username=username, password=password)
+            if user is not None:
+                login(request,user)
                 token, created = Token.objects.get_or_create(user=user)
                 response = {
                     'success': True,
@@ -97,6 +104,7 @@ class UserLoginAPIView(APIView):
                     'email': user.email,
                     'token': token.key
                 }
+
                 return Response(response, status=status.HTTP_200_OK)
             return Response(response, status=status.HTTP_400_BAD_REQUEST)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -118,11 +126,13 @@ class UserRegisterAPIView(APIView):
 
 
 class UserLogoutAPIView(APIView):
-    #   authentication_classes = [TokenAuthentication]
+    authentication_classes = [TokenAuthentication, BasicAuthentication, SessionAuthentication]
+    # authentication_classes = (SessionAuthentication, BasicAuthentication)
     permission_classes = [IsAuthenticated]
 
     def post(self, request, *args):
         print(request.user.id)
         token = Token.objects.get(user_id=request.user.id)
+        logout(request)
         token.delete()
         return Response({"success": True, "detail": "Logged out!"}, status=status.HTTP_200_OK)
